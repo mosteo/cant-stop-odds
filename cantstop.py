@@ -13,14 +13,13 @@ prob3 = [[[0 for _ in range(13)] for _ in range(13)] for _ in range(13)]
 dice = range(1, 7)
 cols = range(2, 13)
 
-rolls = 0
+rolls = 6 ** 4
 
 # Generate possible rolls
 for d1 in dice:
     for d2 in dice:
         for d3 in dice:
             for d4 in dice:
-                rolls += 1
                 # Possible bins:
                 targets = [d1 + d2, d1 + d3, d1 + d4, d2 + d3, d2 + d4, d3 + d4]
                 # Possible combos
@@ -37,7 +36,7 @@ for d1 in dice:
                 # Combos of 3
                 for i in cols:
                     for j in range(i + 1, 13):
-                        for k in range (j + 1, 13):
+                        for k in range(j + 1, 13):
                             if i in targets or j in targets or k in targets:
                                 prob3[i][j][k] += 1
                                 prob3[i][k][j] += 1
@@ -64,6 +63,7 @@ for i in range(2, 13):
             if i < j < k:
                 print("{:2} {:2} {:2}: {:5.2%}".format(i, j, k, prob3[i][j][k]))
 
+
 def prob_of_going(status, i):
     lanes = sum(status)
     if lanes in [0, 1]:
@@ -79,11 +79,23 @@ def prob_of_going(status, i):
     else:
         return 0
 
-def prob2_of_going(status, i):
-    for j in cols:
-        if j != i and status[j]:
-            return prob2[i][j]
-    return 0
+
+def pcompute(check_fun):
+    # Test each target set with check_fun and return probability
+    hits = 0
+    for d1 in dice:
+        for d2 in dice:
+            for d3 in dice:
+                for d4 in dice:
+                    targets = {d1 + d2, d1 + d3, d1 + d4, d2 + d3, d2 + d4, d3 + d4}
+                    if check_fun(targets):
+                        hits += 1
+    return hits / 6**4
+
+
+def check_ok(targets):
+    # Check if this combo is good
+    return any([(open[t] and goin[t]) or (open[t] and sum(goin) < 3) for t in targets])
 
 
 def read_col(text):
@@ -92,25 +104,56 @@ def read_col(text):
     else:
         return int(text)
 
+roll = 1
 
 while True:
     # Print status
+
+    # Prob of individual column (if not going) or of any of going
+    closed = [not x for x in open]
+    cell = "{:6.2%} "
+    bad_idea = False
+    E = 1 / (1 - min(pcompute(check_ok), 0.9999))  # expectancy of required rolls to land a miss
+
     # Columns
-    print("\nBoard state:\n" + " ".join(["{:^6}".format(i) if open[i] else 'XXXXXX' for i in cols]))
+    print("\nBoard state:")
+    print(" ".join(["{:^6}".format(i) if open[i] else 'XXXXXX' for i in cols]))
     # Selection
     print(" ".join(["[====]" if goin[i] else "------" for i in cols]))
-    # Prob of individual column (if not going) or of any of going
-    for in_a_row in range(1, 13):
-        if any(goin):
-            stakes = prob_of_going(goin, [x for x in cols if goin[x]][0])
-            print(" ".join("{:6.2%}".format(1 - stakes ** in_a_row if not goin[i] else stakes ** in_a_row) for i in cols))
-        else:
-            print(" ".join("{:6.2%}".format(prob1[i] ** in_a_row) for i in cols))
 
-    action = input("\nX exits, X[num] toggles column open, [num] toggles advance>> ").lower()
+    for streak in range(1, 14):
+        line = ""
+        p_good = min(pcompute(check_ok) ** streak, 0.9999) # for display of 100%
+        p_fail = min(1 - p_good, 0.9999)
+
+        if p_good < p_fail and not bad_idea:
+            bad_idea = True
+            print("------ " * 11 + " " + str(streak - 1))
+
+        if streak == numpy.ceil(E):
+            print("====== " * 11 + " " + "{:.2f}".format(E))
+
+        for i in cols:
+            if closed[i]:
+                line += cell.format(p_fail)
+            elif not goin[i] and sum(goin) >= 3:
+                line += cell.format(p_fail)
+            elif not goin[i] and sum(goin) + sum(closed) == 0: # Nothing played yet, show initial prob per lane
+                line += cell.format(prob1[i] ** streak)
+            elif not goin[i]: # but we still have lanes to choose
+                line += cell.format(p_good)
+            elif goin[i] and sum(goin) < 3:
+                line += cell.format(p_good)
+            else:  # goin[i] and sum(goin) >= 3, that is: we must hit one of those 3 in use
+                line += cell.format(p_good)
+        print(line + (" <--" if streak == roll else ""))
+
+    action = input("\nX exits, X[num] toggles column open, [num] toggles advance, [ENTER] counts roll, OTHER resets"
+                   "\n>> ").lower()
 
     # Process command
     if action == "":
+        roll += 1
         continue
     elif action == "x":
         break
@@ -120,5 +163,9 @@ while True:
     elif action[-1] == 'x':
         col = read_col(action[:-1])
         open[col] ^= True
-    else:
+    elif action in "0123456789abc" or action in ["10", "11", "12"]:
+        roll = 1
         goin[read_col(action)] ^= True
+    else:
+        goin = [False for _ in range(13)]
+        roll = 1
