@@ -1,6 +1,9 @@
+#!/usr/bin/env python3
+
 # Compute the odds for the Can't stop game
 
 import numpy
+import os
 
 open = [True for _ in range(13)]
 goin = [False for _ in range(13)]
@@ -107,6 +110,8 @@ def read_col(text):
 roll = 1
 
 while True:
+    os.system("clear")
+
     # Print status
 
     # Prob of individual column (if not going) or of any of going
